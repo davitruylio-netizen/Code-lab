@@ -1,739 +1,1129 @@
 
-/* =====================================================
-   CODELAB STUDIO
-   Motor principal - Versão 0.1
-   Blockly + JavaScript + Canvas 2D + Three.js
-===================================================== */
+/* =========================================================
+   CODELAB STUDIO — MOTOR PRINCIPAL
+   Blockly + Canvas 2D + Three.js
+   ========================================================= */
 
 const $ = (id) => document.getElementById(id);
+
+let workspace;
+let THREE = null;
+let scene3D;
+let camera3D;
+let renderer3D;
+let character3D;
+let animationFrame;
+
+let running = false;
+let currentMode = "2D";
+
+const STORAGE_KEY = "codelab_studio_projects_v2";
+
+const game = {
+  x: 400,
+  y: 250,
+  angle: 0,
+  speed: 5,
+  verticalSpeed: 0,
+  gravity: 0.5,
+  grounded: true,
+  message: "",
+  messageTime: 0,
+  background: "#17233c",
+  steps: 0
+};
+
+const explanations = {
+  codelab_start: {
+    title: "🚀 Quando iniciar",
+    description: "Marca o começo de um programa. Use este bloco para organizar a sequência de comandos do seu projeto."
+  },
+  codelab_move: {
+    title: "🏃 Mover personagem",
+    description: "Movimenta o personagem na direção escolhida. No modo 2D, utiliza as direções da tela. No modo 3D, movimenta o personagem pelo mundo."
+  },
+  codelab_turn: {
+    title: "🔄 Girar personagem",
+    description: "Altera a orientação do personagem. Experimente diferentes ângulos para criar movimentos e direções."
+  },
+  codelab_say: {
+    title: "💬 Mostrar mensagem",
+    description: "Exibe uma mensagem sobre o personagem. É útil para diálogos, instruções e histórias."
+  },
+  codelab_background: {
+    title: "🎨 Mudar cenário",
+    description: "Altera a cor de fundo do projeto. Experimente diferentes cores para criar ambientes."
+  },
+  codelab_move3d: {
+    title: "🌎 Movimento 3D",
+    description: "Move o personagem nos eixos X, Y e Z. X representa esquerda e direita, Y representa altura e Z representa profundidade."
+  },
+  codelab_rotate3d: {
+    title: "🧭 Rotação 3D",
+    description: "Gira o objeto tridimensional nos eixos X, Y e Z."
+  },
+  codelab_jump: {
+    title: "⬆️ Pular",
+    description: "Aplica um impulso vertical no personagem. A gravidade atua depois do impulso."
+  },
+  codelab_speed: {
+    title: "⚡ Definir velocidade",
+    description: "Define a velocidade usada pelos próximos movimentos."
+  }
+};
+
+function log(message, type = "normal") {
+  const output = $("consoleOutput");
+  if (!output) return;
+
+  const line = document.createElement("p");
+  line.textContent = message;
+  line.className = "console-" + type;
+  output.appendChild(line);
+  output.scrollTop = output.scrollHeight;
+}
+
+function explainBlock(block) {
+  const panel = $("blockExplanation");
+  if (!panel) return;
+
+  const info = explanations[block.type];
+
+  if (!info) {
+    panel.innerHTML = `
+      <h3>${block.type.replaceAll("_", " ")}</h3>
+      <p>Este é um bloco do Blockly. Use-o para construir a lógica do seu programa.</p>
+    `;
+    return;
+  }
+
+  panel.innerHTML = `
+    <h3>${info.title}</h3>
+    <p>${info.description}</p>
+  `;
+}
+
+/* =========================================================
+   PERSONAGEM 2D
+   ========================================================= */
 
 const canvas = $("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-const consoleOutput = $("consoleOutput");
-const executionStatus = $("executionStatus");
-const explanationTitle = $("explanationTitle");
-const explanationText = $("explanationText");
-const saveStatus = $("saveStatus");
+function drawCharacter2D() {
+  ctx.save();
+  ctx.translate(game.x, game.y);
+  ctx.rotate(game.angle * Math.PI / 180);
 
-let currentMode = "2d";
-let workspace;
-let running = false;
-let threeEngine = null;
-
-/* =====================================================
-   1. PERSONAGEM E CENA 2D
-===================================================== */
-
-const player = {
-  x: 400,
-  y: 270,
-  size: 34,
-  direction: 0,
-  color: "#397FEA",
-  message: ""
-};
-
-let backgroundColor = "#DCE9F4";
-
-function drawScene() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Fundo
-  ctx.fillStyle = backgroundColor;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Grade decorativa
-  ctx.strokeStyle = "rgba(60,90,120,0.10)";
-  ctx.lineWidth = 1;
-
-  for (let x = 0; x < canvas.width; x += 40) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height);
-    ctx.stroke();
-  }
-
-  for (let y = 0; y < canvas.height; y += 40) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(canvas.width, y);
-    ctx.stroke();
-  }
-
-  // Sombra do personagem
-  ctx.fillStyle = "rgba(0,0,0,0.15)";
+  // Sombra
   ctx.beginPath();
-  ctx.ellipse(player.x, player.y + 17, 20, 7, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 19, 17, 6, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
   ctx.fill();
 
-  // Personagem
-  ctx.save();
-  ctx.translate(player.x, player.y);
-  ctx.rotate(player.direction);
+  // Pernas
+  ctx.fillStyle = "#263b6c";
+  ctx.fillRect(-11, 5, 9, 17);
+  ctx.fillRect(2, 5, 9, 17);
 
-  ctx.fillStyle = player.color;
+  // Botas
+  ctx.fillStyle = "#18202d";
+  ctx.fillRect(-13, 18, 12, 6);
+  ctx.fillRect(2, 18, 12, 6);
+
+  // Corpo
+  ctx.fillStyle = "#4389e8";
   ctx.beginPath();
-  ctx.roundRect(-15, -17, 30, 34, 9);
+  ctx.roundRect(-14, -10, 28, 23, 8);
+  ctx.fill();
+
+  // Mochila
+  ctx.fillStyle = "#24509a";
+  ctx.fillRect(-17, -7, 6, 15);
+
+  // Cabeça
+  ctx.fillStyle = "#f0bd91";
+  ctx.beginPath();
+  ctx.arc(0, -19, 12, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Cabelo
+  ctx.fillStyle = "#392c29";
+  ctx.beginPath();
+  ctx.arc(0, -23, 12, Math.PI, Math.PI * 2);
   ctx.fill();
 
   // Olhos
-  ctx.fillStyle = "#FFFFFF";
+  ctx.fillStyle = "#20232b";
   ctx.beginPath();
-  ctx.arc(5, -6, 3, 0, Math.PI * 2);
+  ctx.arc(4, -19, 1.5, 0, Math.PI * 2);
   ctx.fill();
 
+  // Indicador de direção
+  ctx.fillStyle = "#ffffff";
   ctx.beginPath();
-  ctx.arc(5, 6, 3, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Direção
-  ctx.fillStyle = "#17345B";
-  ctx.beginPath();
-  ctx.moveTo(14, 0);
-  ctx.lineTo(24, -6);
-  ctx.lineTo(24, 6);
+  ctx.moveTo(0, -35);
+  ctx.lineTo(-5, -29);
+  ctx.lineTo(5, -29);
   ctx.closePath();
   ctx.fill();
 
   ctx.restore();
 
-  // Mensagem do personagem
-  if (player.message) {
-    ctx.fillStyle = "#17243A";
-    ctx.font = "bold 18px Arial";
+  if (game.message && game.messageTime > 0) {
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.beginPath();
+    ctx.roundRect(game.x - 95, game.y - 75, 190, 30, 9);
+    ctx.fill();
+
+    ctx.fillStyle = "#18202d";
+    ctx.font = "bold 13px Arial";
     ctx.textAlign = "center";
-    ctx.fillText(player.message, player.x, player.y - 35);
+    ctx.fillText(game.message, game.x, game.y - 55, 175);
+
+    game.messageTime--;
+    if (game.messageTime <= 0) game.message = "";
   }
 }
 
-function movePlayer(steps) {
-  const distance = Number(steps) || 0;
+function draw2D() {
+  if (!ctx) return;
 
-  player.x += Math.cos(player.direction) * distance;
-  player.y += Math.sin(player.direction) * distance;
+  canvas.width = 800;
+  canvas.height = 500;
 
-  player.x = Math.max(18, Math.min(canvas.width - 25, player.x));
-  player.y = Math.max(18, Math.min(canvas.height - 25, player.y));
+  ctx.fillStyle = game.background;
+  ctx.fillRect(0, 0, 800, 500);
 
-  drawScene();
-}
+  // Grade decorativa
+  ctx.strokeStyle = "rgba(255,255,255,0.055)";
+  ctx.lineWidth = 1;
 
-function turnPlayer(degrees) {
-  player.direction += (Number(degrees) || 0) * Math.PI / 180;
-  drawScene();
-}
-
-function sayMessage(message) {
-  player.message = String(message);
-  drawScene();
-}
-
-function changeBackground(color) {
-  backgroundColor = color;
-  drawScene();
-}
-
-/* =====================================================
-   2. EXPLICAÇÕES DOS BLOCOS
-===================================================== */
-
-const explanations = {
-  codelab_start: {
-    title: "Quando iniciar o programa",
-    text: "Este bloco marca o começo de uma sequência de instruções. Coloque os comandos abaixo dele para definir o que acontecerá quando você executar seu projeto."
-  },
-
-  codelab_move: {
-    title: "Mover personagem",
-    text: "Este bloco movimenta o personagem para a direção em que ele está olhando. O número representa a distância percorrida. Experimente 10, 50 ou 100 passos."
-  },
-
-  codelab_turn: {
-    title: "Girar personagem",
-    text: "Gira o personagem em graus. 90 representa um quarto de volta, 180 representa meia volta e 360 representa uma volta completa."
-  },
-
-  codelab_say: {
-    title: "Dizer uma mensagem",
-    text: "Mostra uma mensagem acima do personagem. É útil para diálogos, avisos, histórias e comunicação com o jogador."
-  },
-
-  codelab_background: {
-    title: "Mudar cenário",
-    text: "Altera a cor do fundo da cena. Você pode utilizar cores como skyblue, lightgreen, orange ou códigos como #FFCC88."
-  },
-
-  controls_repeat_ext: {
-    title: "Repetir uma quantidade de vezes",
-    text: "Executa os blocos que estão dentro deste espaço várias vezes. É útil para criar movimentos repetidos e evitar copiar o mesmo comando."
-  },
-
-  controls_if: {
-    title: "Se uma condição for verdadeira",
-    text: "Executa comandos somente quando uma condição é atendida. Isso permite criar decisões dentro dos seus jogos."
-  },
-
-  logic_compare: {
-    title: "Comparar valores",
-    text: "Compara dois valores para descobrir se são iguais, diferentes, maiores ou menores."
-  },
-
-  math_number: {
-    title: "Número",
-    text: "Fornece um valor numérico para outros blocos utilizarem em cálculos, movimento e condições."
-  },
-
-  math_arithmetic: {
-    title: "Operações matemáticas",
-    text: "Realiza adição, subtração, multiplicação e divisão. Esses cálculos podem controlar pontuação, velocidade e distância."
+  for (let x = 0; x <= 800; x += 40) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, 500);
+    ctx.stroke();
   }
-};
 
-function showExplanation(block) {
-  if (!block) return;
-
-  const info = explanations[block.type];
-
-  if (info) {
-    explanationTitle.textContent = info.title;
-    explanationText.textContent = info.text;
-  } else {
-    explanationTitle.textContent = block.type.replaceAll("_", " ");
-    explanationText.textContent =
-      "Este bloco faz parte da programação do seu projeto. Experimente conectá-lo a outros blocos e executar o programa para entender seu funcionamento.";
+  for (let y = 0; y <= 500; y += 40) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(800, y);
+    ctx.stroke();
   }
+
+  drawCharacter2D();
 }
 
-/* =====================================================
-   3. CRIAÇÃO DOS BLOCOS PERSONALIZADOS
-===================================================== */
+/* =========================================================
+   THREE.JS — PERSONAGEM 3D
+   ========================================================= */
 
-Blockly.defineBlocksWithJsonArray([
-  {
-    "type": "codelab_start",
-    "message0": "quando iniciar o programa",
-    "nextStatement": null,
-    "style": "event_blocks",
-    "tooltip": "Inicia uma sequência de comandos.",
-    "helpUrl": ""
-  },
-  {
-    "type": "codelab_move",
-    "message0": "mover personagem %1 passos",
-    "args0": [
-      {
-        "type": "field_number",
-        "name": "STEPS",
-        "value": 50,
-        "min": -500,
-        "max": 500
-      }
-    ],
-    "previousStatement": null,
-    "nextStatement": null,
-    "style": "motion_blocks",
-    "tooltip": "Movimenta o personagem.",
-    "helpUrl": ""
-  },
-  {
-    "type": "codelab_turn",
-    "message0": "girar personagem %1 graus",
-    "args0": [
-      {
-        "type": "field_number",
-        "name": "DEGREES",
-        "value": 90,
-        "min": -360,
-        "max": 360
-      }
-    ],
-    "previousStatement": null,
-    "nextStatement": null,
-    "style": "motion_blocks",
-    "tooltip": "Gira o personagem.",
-    "helpUrl": ""
-  },
-  {
-    "type": "codelab_say",
-    "message0": "dizer %1",
-    "args0": [
-      {
-        "type": "field_input",
-        "name": "MESSAGE",
-        "text": "Olá, mundo!"
-      }
-    ],
-    "previousStatement": null,
-    "nextStatement": null,
-    "style": "looks_blocks",
-    "tooltip": "Exibe uma mensagem.",
-    "helpUrl": ""
-  },
-  {
-    "type": "codelab_background",
-    "message0": "mudar fundo para %1",
-    "args0": [
-      {
-        "type": "field_input",
-        "name": "COLOR",
-        "text": "#B9E5FF"
-      }
-    ],
-    "previousStatement": null,
-    "nextStatement": null,
-    "style": "looks_blocks",
-    "tooltip": "Altera o fundo do cenário.",
-    "helpUrl": ""
-  }
-]);
-
-/* =====================================================
-   4. GERADOR DE JAVASCRIPT
-===================================================== */
-
-const JS = Blockly.JavaScript;
-
-JS.forBlock["codelab_start"] = function () {
-  return "// Início do programa\n";
-};
-
-JS.forBlock["codelab_move"] = function (block) {
-  const steps = Number(block.getFieldValue("STEPS")) || 0;
-  return `api.move(${steps});\n`;
-};
-
-JS.forBlock["codelab_turn"] = function (block) {
-  const degrees = Number(block.getFieldValue("DEGREES")) || 0;
-  return `api.turn(${degrees});\n`;
-};
-
-JS.forBlock["codelab_say"] = function (block) {
-  const message = JSON.stringify(block.getFieldValue("MESSAGE"));
-  return `api.say(${message});\n`;
-};
-
-JS.forBlock["codelab_background"] = function (block) {
-  const color = JSON.stringify(block.getFieldValue("COLOR"));
-  return `api.background(${color});\n`;
-};
-
-/* =====================================================
-   5. MOTOR DE EXECUÇÃO
-===================================================== */
-
-const api = {
-  move: (steps) => {
-    if (currentMode === "2d") {
-      movePlayer(steps);
-    } else if (threeEngine) {
-      threeEngine.move(steps);
-    }
-  },
-
-  turn: (degrees) => {
-    if (currentMode === "2d") {
-      turnPlayer(degrees);
-    } else if (threeEngine) {
-      threeEngine.turn(degrees);
-    }
-  },
-
-  say: (message) => {
-    if (currentMode === "2d") {
-      sayMessage(message);
-    } else if (threeEngine) {
-      threeEngine.say(message);
-    }
-
-    addConsole("Personagem: " + message);
-  },
-
-  background: (color) => {
-    if (currentMode === "2d") {
-      changeBackground(color);
-    } else if (threeEngine) {
-      threeEngine.background(color);
-    }
-
-    addConsole("Cenário alterado: " + color);
-  }
-};
-
-function addConsole(message, type = "normal") {
-  const line = document.createElement("p");
-
-  line.textContent = "> " + message;
-
-  if (type === "error") line.className = "console-error";
-  if (type === "success") line.className = "console-success";
-
-  consoleOutput.appendChild(line);
-  consoleOutput.scrollTop = consoleOutput.scrollHeight;
-}
-
-function clearConsole() {
-  consoleOutput.innerHTML = "";
-}
-
-function runProgram() {
-  if (!workspace) return;
-
-  stopProgram();
-  clearConsole();
-
-  const code = JS.workspaceToCode(workspace);
-
-  if (!code.trim()) {
-    addConsole("Adicione alguns blocos antes de executar.");
-    executionStatus.textContent = "Nenhum comando encontrado";
-    return;
+async function initialize3D() {
+  if (renderer3D) {
+    resize3D();
+    return true;
   }
 
   try {
-    running = true;
+    const module = await import(
+      "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"
+    );
 
-    addConsole("Executando programa...");
-    executionStatus.textContent = "Programa executado";
+    THREE = module;
 
-    // O código gerado utiliza somente a API disponibilizada.
-    const execute = new Function("api", `"use strict";\n${code}`);
-    execute(api);
+    const container = $("threeContainer");
 
-    addConsole("Programa concluído!", "success");
+    scene3D = new THREE.Scene();
+    scene3D.background = new THREE.Color("#91b9dc");
+
+    camera3D = new THREE.PerspectiveCamera(
+      55,
+      1,
+      0.1,
+      1000
+    );
+
+    camera3D.position.set(5, 4, 7);
+    camera3D.lookAt(0, 1, 0);
+
+    renderer3D = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: false
+    });
+
+    renderer3D.setPixelRatio(
+      Math.min(window.devicePixelRatio || 1, 2)
+    );
+
+    renderer3D.shadowMap.enabled = true;
+    renderer3D.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    container.innerHTML = "";
+    container.appendChild(renderer3D.domElement);
+
+    // Iluminação
+    const ambient = new THREE.HemisphereLight(
+      0xffffff,
+      0x71805d,
+      2
+    );
+    scene3D.add(ambient);
+
+    const sunlight = new THREE.DirectionalLight(
+      0xffffff,
+      2.5
+    );
+
+    sunlight.position.set(5, 10, 5);
+    sunlight.castShadow = true;
+    sunlight.shadow.mapSize.set(1024, 1024);
+    scene3D.add(sunlight);
+
+    // Terreno
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(100, 100),
+      new THREE.MeshStandardMaterial({
+        color: "#6c9d63",
+        roughness: 1
+      })
+    );
+
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.03;
+    ground.receiveShadow = true;
+    scene3D.add(ground);
+
+    // Grade do terreno
+    const grid = new THREE.GridHelper(
+      100,
+      100,
+      0x78976b,
+      0x78976b
+    );
+    grid.position.y = 0.005;
+    scene3D.add(grid);
+
+    // Criar personagem
+    character3D = new THREE.Group();
+    scene3D.add(character3D);
+
+    const material = (color) =>
+      new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.75
+      });
+
+    function part(geometry, color, x, y, z) {
+      const mesh = new THREE.Mesh(
+        geometry,
+        material(color)
+      );
+
+      mesh.position.set(x, y, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      character3D.add(mesh);
+
+      return mesh;
+    }
+
+    // Corpo
+    part(
+      new THREE.CapsuleGeometry(0.32, 0.55, 5, 10),
+      "#367bd4",
+      0, 1.25, 0
+    );
+
+    // Cabeça
+    part(
+      new THREE.SphereGeometry(0.31, 24, 20),
+      "#f1c29a",
+      0, 2.05, 0
+    );
+
+    // Cabelo
+    part(
+      new THREE.SphereGeometry(0.315, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.55),
+      "#44302a",
+      0, 2.13, 0
+    );
+
+    // Mochila
+    part(
+      new THREE.BoxGeometry(0.48, 0.55, 0.2),
+      "#8a542c",
+      0, 1.32, -0.32
+    );
+
+    // Braços
+    const armLeft = part(
+      new THREE.CapsuleGeometry(0.105, 0.48, 4, 8),
+      "#e8b58e",
+      -0.43, 1.32, 0
+    );
+
+    const armRight = part(
+      new THREE.CapsuleGeometry(0.105, 0.48, 4, 8),
+      "#e8b58e",
+      0.43, 1.32, 0
+    );
+
+    // Pernas
+    const legLeft = part(
+      new THREE.CapsuleGeometry(0.13, 0.45, 4, 8),
+      "#263e6c",
+      -0.17, 0.47, 0
+    );
+
+    const legRight = part(
+      new THREE.CapsuleGeometry(0.13, 0.45, 4, 8),
+      "#263e6c",
+      0.17, 0.47, 0
+    );
+
+    // Botas
+    part(
+      new THREE.BoxGeometry(0.28, 0.16, 0.4),
+      "#252b36",
+      -0.17, 0.12, 0.08
+    );
+
+    part(
+      new THREE.BoxGeometry(0.28, 0.16, 0.4),
+      "#252b36",
+      0.17, 0.12, 0.08
+    );
+
+    character3D.userData = {
+      armLeft,
+      armRight,
+      legLeft,
+      legRight,
+      animationTime: 0,
+      moving: false
+    };
+
+    resize3D();
+    animate3D();
+
+    log("Motor 3D inicializado.", "success");
+    return true;
 
   } catch (error) {
     console.error(error);
-    addConsole(error.message, "error");
-    executionStatus.textContent = "Erro na execução";
-  } finally {
+    log("Não foi possível iniciar o motor 3D: " + error.message, "error");
+    return false;
+  }
+}
+
+function resize3D() {
+  if (!renderer3D || !$("threeContainer")) return;
+
+  const container = $("threeContainer");
+  const width = Math.max(container.clientWidth, 1);
+  const height = Math.max(container.clientHeight, 1);
+
+  camera3D.aspect = width / height;
+  camera3D.updateProjectionMatrix();
+
+  renderer3D.setSize(width, height);
+}
+
+function animate3D() {
+  animationFrame = requestAnimationFrame(animate3D);
+
+  if (!renderer3D || !character3D) return;
+
+  const data = character3D.userData;
+
+  if (data.moving) {
+    data.animationTime += 0.12;
+
+    data.legLeft.rotation.x = Math.sin(data.animationTime) * 0.55;
+    data.legRight.rotation.x = Math.sin(data.animationTime + Math.PI) * 0.55;
+
+    data.armLeft.rotation.x = Math.sin(data.animationTime + Math.PI) * 0.35;
+    data.armRight.rotation.x = Math.sin(data.animationTime) * 0.35;
+  } else {
+    data.legLeft.rotation.x = 0;
+    data.legRight.rotation.x = 0;
+    data.armLeft.rotation.x = 0;
+    data.armRight.rotation.x = 0;
+  }
+
+  renderer3D.render(scene3D, camera3D);
+}
+
+function reset3DCharacter() {
+  if (!character3D) return;
+
+  character3D.position.set(0, 0, 0);
+  character3D.rotation.set(0, 0, 0);
+  character3D.userData.moving = false;
+}
+
+/* =========================================================
+   BLOCOS PERSONALIZADOS
+   ========================================================= */
+
+function registerBlocks() {
+  Blockly.defineBlocksWithJsonArray([
+    {
+      type: "codelab_start",
+      message0: "🚀 quando executar o programa",
+      nextStatement: null,
+      style: "event_blocks",
+      tooltip: "Inicia a sequência de comandos.",
+      helpUrl: ""
+    },
+    {
+      type: "codelab_move",
+      message0: "mover %1 por %2 passos",
+      args0: [
+        {
+          type: "field_dropdown",
+          name: "DIRECTION",
+          options: [
+            ["para frente", "FORWARD"],
+            ["para trás", "BACKWARD"],
+            ["para direita", "RIGHT"],
+            ["para esquerda", "LEFT"],
+            ["para cima", "UP"],
+            ["para baixo", "DOWN"]
+          ]
+        },
+        {
+          type: "input_value",
+          name: "DISTANCE",
+          check: "Number"
+        }
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      style: "motion_blocks",
+      tooltip: "Movimenta o personagem no ambiente."
+    },
+    {
+      type: "codelab_turn",
+      message0: "girar %1 graus",
+      args0: [
+        {
+          type: "input_value",
+          name: "ANGLE",
+          check: "Number"
+        }
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      style: "motion_blocks",
+      tooltip: "Gira o personagem."
+    },
+    {
+      type: "codelab_say",
+      message0: "💬 dizer %1",
+      args0: [
+        {
+          type: "input_value",
+          name: "TEXT",
+          check: "String"
+        }
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      style: "looks_blocks",
+      tooltip: "Exibe uma mensagem."
+    },
+    {
+      type: "codelab_background",
+      message0: "mudar fundo para %1",
+      args0: [
+        {
+          type: "field_colour",
+          name: "COLOR",
+          colour: "#17233c"
+        }
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      style: "looks_blocks",
+      tooltip: "Altera o fundo do projeto."
+    },
+    {
+      type: "codelab_move3d",
+      message0: "mover 3D X %1 Y %2 Z %3",
+      args0: [
+        { type: "input_value", name: "X", check: "Number" },
+        { type: "input_value", name: "Y", check: "Number" },
+        { type: "input_value", name: "Z", check: "Number" }
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      style: "motion_blocks",
+      tooltip: "Move o personagem nos três eixos."
+    },
+    {
+      type: "codelab_rotate3d",
+      message0: "rotacionar 3D X %1 Y %2 Z %3",
+      args0: [
+        { type: "input_value", name: "X", check: "Number" },
+        { type: "input_value", name: "Y", check: "Number" },
+        { type: "input_value", name: "Z", check: "Number" }
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      style: "motion_blocks",
+      tooltip: "Rotaciona o personagem nos três eixos."
+    },
+    {
+      type: "codelab_jump",
+      message0: "⬆️ pular com força %1",
+      args0: [
+        { type: "input_value", name: "POWER", check: "Number" }
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      style: "motion_blocks",
+      tooltip: "Aplica impulso vertical."
+    },
+    {
+      type: "codelab_speed",
+      message0: "definir velocidade para %1",
+      args0: [
+        { type: "input_value", name: "SPEED", check: "Number" }
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      style: "motion_blocks",
+      tooltip: "Define a velocidade dos movimentos."
+    }
+  ]);
+}
+
+/* =========================================================
+   GERADORES JAVASCRIPT
+   ========================================================= */
+
+function registerGenerators() {
+  const JS = Blockly.JavaScript;
+
+  JS.forBlock["codelab_start"] = function () {
+    return "api.start();\n";
+  };
+
+  JS.forBlock["codelab_move"] = function (block, generator) {
+    const direction = block.getFieldValue("DIRECTION");
+    const distance = generator.valueToCode(
+      block, "DISTANCE", JS.ORDER_ATOMIC
+    ) || "10";
+
+    return `api.move("${direction}", ${distance});\n`;
+  };
+
+  JS.forBlock["codelab_turn"] = function (block, generator) {
+    const angle = generator.valueToCode(
+      block, "ANGLE", JS.ORDER_ATOMIC
+    ) || "90";
+
+    return `api.turn(${angle});\n`;
+  };
+
+  JS.forBlock["codelab_say"] = function (block, generator) {
+    const value = generator.valueToCode(
+      block, "TEXT", JS.ORDER_ATOMIC
+    ) || '""';
+
+    return `api.say(${value});\n`;
+  };
+
+  JS.forBlock["codelab_background"] = function (block) {
+    const color = block.getFieldValue("COLOR");
+    return `api.background("${color}");\n`;
+  };
+
+  JS.forBlock["codelab_move3d"] = function (block, generator) {
+    const x = generator.valueToCode(block, "X", JS.ORDER_ATOMIC) || "0";
+    const y = generator.valueToCode(block, "Y", JS.ORDER_ATOMIC) || "0";
+    const z = generator.valueToCode(block, "Z", JS.ORDER_ATOMIC) || "0";
+
+    return `api.move3D(${x}, ${y}, ${z});\n`;
+  };
+
+  JS.forBlock["codelab_rotate3d"] = function (block, generator) {
+    const x = generator.valueToCode(block, "X", JS.ORDER_ATOMIC) || "0";
+    const y = generator.valueToCode(block, "Y", JS.ORDER_ATOMIC) || "0";
+    const z = generator.valueToCode(block, "Z", JS.ORDER_ATOMIC) || "0";
+
+    return `api.rotate3D(${x}, ${y}, ${z});\n`;
+  };
+
+  JS.forBlock["codelab_jump"] = function (block, generator) {
+    const power = generator.valueToCode(
+      block, "POWER", JS.ORDER_ATOMIC
+    ) || "5";
+
+    return `api.jump(${power});\n`;
+  };
+
+  JS.forBlock["codelab_speed"] = function (block, generator) {
+    const speed = generator.valueToCode(
+      block, "SPEED", JS.ORDER_ATOMIC
+    ) || "5";
+
+    return `api.speed(${speed});\n`;
+  };
+}
+
+/* =========================================================
+   API DOS BLOCOS
+   ========================================================= */
+
+const api = {
+  start() {
+    log("Programa iniciado.", "success");
+  },
+
+  move(direction, distance) {
+    if (!running) return;
+
+    const amount = Math.max(
+      -1000,
+      Math.min(1000, Number(distance) || 0)
+    );
+
+    if (currentMode === "2D") {
+      const angle = game.angle * Math.PI / 180;
+
+      let dx = 0;
+      let dy = 0;
+
+      if (direction === "FORWARD") {
+        dx = Math.sin(angle) * amount;
+        dy = -Math.cos(angle) * amount;
+      }
+
+      if (direction === "BACKWARD") {
+        dx = -Math.sin(angle) * amount;
+        dy = Math.cos(angle) * amount;
+      }
+
+      if (direction === "RIGHT") dx = amount;
+      if (direction === "LEFT") dx = -amount;
+      if (direction === "UP") dy = -amount;
+      if (direction === "DOWN") dy = amount;
+
+      game.x = Math.max(15, Math.min(785, game.x + dx));
+      game.y = Math.max(15, Math.min(485, game.y + dy));
+
+      draw2D();
+    } else if (character3D) {
+      const amount3D = amount / 20;
+
+      if (direction === "FORWARD") character3D.translateZ(-amount3D);
+      if (direction === "BACKWARD") character3D.translateZ(amount3D);
+      if (direction === "RIGHT") character3D.translateX(amount3D);
+      if (direction === "LEFT") character3D.translateX(-amount3D);
+      if (direction === "UP") character3D.position.y += amount3D;
+      if (direction === "DOWN") character3D.position.y -= amount3D;
+
+      character3D.userData.moving = true;
+    }
+
+    game.steps++;
+  },
+
+  turn(angle) {
+    if (!running) return;
+
+    const value = Number(angle) || 0;
+
+    if (currentMode === "2D") {
+      game.angle += value;
+      draw2D();
+    } else if (character3D) {
+      character3D.rotation.y += value * Math.PI / 180;
+    }
+  },
+
+  say(message) {
+    if (!running) return;
+
+    game.message = String(message).slice(0, 100);
+    game.messageTime = 180;
+
+    log("Personagem: " + game.message);
+    if (currentMode === "2D") draw2D();
+  },
+
+  background(color) {
+    if (!running) return;
+
+    game.background = color;
+
+    if (currentMode === "2D") {
+      draw2D();
+    } else if (scene3D) {
+      scene3D.background = new THREE.Color(color);
+    }
+  },
+
+  move3D(x, y, z) {
+    if (!running || !character3D) return;
+
+    character3D.position.x += Number(x) || 0;
+    character3D.position.y += Number(y) || 0;
+    character3D.position.z += Number(z) || 0;
+    character3D.userData.moving = true;
+  },
+
+  rotate3D(x, y, z) {
+    if (!running || !character3D) return;
+
+    character3D.rotation.x += Number(x) * Math.PI / 180 || 0;
+    character3D.rotation.y += Number(y) * Math.PI / 180 || 0;
+    character3D.rotation.z += Number(z) * Math.PI / 180 || 0;
+  },
+
+  jump(power) {
+    if (!running) return;
+
+    const force = Math.max(0, Math.min(30, Number(power) || 5));
+
+    if (currentMode === "2D") {
+      game.y = Math.max(15, game.y - force * 5);
+      draw2D();
+    } else if (character3D) {
+      character3D.position.y += force / 10;
+    }
+  },
+
+  speed(value) {
+    game.speed = Math.max(0, Math.min(100, Number(value) || 0));
+    log("Velocidade definida: " + game.speed);
+  }
+};
+
+/* =========================================================
+   EXECUTAR E PARAR
+   ========================================================= */
+
+async function runProgram() {
+  if (!workspace) return;
+
+  if (running) {
+    log("Já existe um programa em execução.", "warning");
+    return;
+  }
+
+  if (currentMode === "3D") {
+    const ready = await initialize3D();
+    if (!ready) return;
+  }
+
+  try {
+    resetCharacter();
+
+    const code = Blockly.JavaScript.workspaceToCode(workspace);
+
+    if (!code.trim()) {
+      log("Adicione blocos antes de executar.", "warning");
+      return;
+    }
+
+    running = true;
+
+    if (character3D) {
+      character3D.userData.moving = false;
+    }
+
+    $("previewStatus").textContent = "EXECUTANDO";
+
+    log("Executando programa...");
+
+    const execute = new Function(
+      "api",
+      `"use strict";\n${code}`
+    );
+
+    execute(api);
+
+    if (running) {
+      running = false;
+      $("previewStatus").textContent = "CONCLUÍDO";
+      if (character3D) character3D.userData.moving = false;
+      log("Programa concluído.", "success");
+    }
+
+  } catch (error) {
     running = false;
+    $("previewStatus").textContent = "ERRO";
+    if (character3D) character3D.userData.moving = false;
+    log("Erro: " + error.message, "error");
+    console.error(error);
   }
 }
 
 function stopProgram() {
   running = false;
-  executionStatus.textContent = "Programa interrompido";
+
+  if (character3D) {
+    character3D.userData.moving = false;
+  }
+
+  $("previewStatus").textContent = "PARADO";
+  log("Execução interrompida.");
 }
 
-/* =====================================================
-   6. MOTOR 3D - THREE.JS
-===================================================== */
+function resetCharacter() {
+  game.x = 400;
+  game.y = 250;
+  game.angle = 0;
+  game.message = "";
+  game.messageTime = 0;
+  game.steps = 0;
 
-async function initialize3D() {
-  if (threeEngine) return threeEngine;
+  if (currentMode === "2D") {
+    draw2D();
+  } else {
+    reset3DCharacter();
+  }
+}
 
-  const container = $("threeContainer");
+/* =========================================================
+   SALVAR E ABRIR PROJETOS
+   ========================================================= */
 
+function getProjects() {
   try {
-    const THREE = await import(
-      "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"
-    );
-
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#B9D9F4");
-
-    const camera = new THREE.PerspectiveCamera(
-      60,
-      container.clientWidth / container.clientHeight,
-      0.1,
-      1000
-    );
-
-    camera.position.set(5, 5, 8);
-    camera.lookAt(0, 0, 0);
-
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true
-    });
-
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(container.clientWidth, container.clientHeight);
-
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-    container.innerHTML = "";
-    container.appendChild(renderer.domElement);
-
-    // Luz ambiente
-    const ambient = new THREE.HemisphereLight(
-      0xffffff,
-      0x526078,
-      2
-    );
-
-    scene.add(ambient);
-
-    // Luz principal
-    const sunlight = new THREE.DirectionalLight(0xffffff, 2.5);
-
-    sunlight.position.set(5, 10, 5);
-    sunlight.castShadow = true;
-
-    scene.add(sunlight);
-
-    // Terreno
-    const groundGeometry = new THREE.PlaneGeometry(100, 100);
-
-    const groundMaterial = new THREE.MeshStandardMaterial({
-      color: "#76B77A",
-      roughness: 1
-    });
-
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-
-    scene.add(ground);
-
-    // Personagem provisório
-    const character = new THREE.Group();
-
-    const body = new THREE.Mesh(
-      new THREE.BoxGeometry(0.8, 1.2, 0.5),
-      new THREE.MeshStandardMaterial({ color: "#397FEA" })
-    );
-
-    body.position.y = 1;
-    body.castShadow = true;
-
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.32, 24, 24),
-      new THREE.MeshStandardMaterial({ color: "#F1C49B" })
-    );
-
-    head.position.y = 1.85;
-    head.castShadow = true;
-
-    character.add(body, head);
-    character.position.y = 0;
-
-    scene.add(character);
-
-    function resize() {
-      const width = container.clientWidth;
-      const height = container.clientHeight;
-
-      if (!width || !height) return;
-
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-
-      renderer.setSize(width, height);
-    }
-
-    const resizeObserver = new ResizeObserver(resize);
-    resizeObserver.observe(container);
-
-    function animate() {
-      requestAnimationFrame(animate);
-      renderer.render(scene, camera);
-    }
-
-    animate();
-
-    threeEngine = {
-      scene,
-      camera,
-      renderer,
-      character,
-
-      move(steps) {
-        const distance = Number(steps) / 50;
-
-        character.position.x += Math.sin(character.rotation.y) * distance;
-        character.position.z += Math.cos(character.rotation.y) * distance;
-      },
-
-      turn(degrees) {
-        character.rotation.y -= Number(degrees) * Math.PI / 180;
-      },
-
-      say(message) {
-        addConsole("Personagem: " + message);
-      },
-
-      background(color) {
-        try {
-          scene.background = new THREE.Color(color);
-        } catch {
-          addConsole("Cor inválida: " + color, "error");
-        }
-      }
-    };
-
-    return threeEngine;
-
-  } catch (error) {
-    console.error(error);
-    addConsole("Não foi possível carregar o motor 3D: " + error.message, "error");
-    throw error;
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+  } catch {
+    return [];
   }
 }
-
-/* =====================================================
-   7. ALTERNÂNCIA ENTRE 2D E 3D
-===================================================== */
-
-async function setMode(mode) {
-  currentMode = mode;
-
-  const is3D = mode === "3d";
-
-  $("gameCanvas").hidden = is3D;
-  $("threeContainer").hidden = !is3D;
-
-  $("previewLabel").textContent = is3D ? "MODO 3D" : "MODO 2D";
-
-  document.querySelectorAll(".view-button").forEach(button => {
-    button.classList.toggle(
-      "active",
-      button.dataset.mode === mode
-    );
-  });
-
-  document.querySelectorAll(".side-item[data-mode]").forEach(button => {
-    button.classList.toggle(
-      "selected",
-      button.dataset.mode === mode
-    );
-  });
-
-  if (is3D) {
-    try {
-      await initialize3D();
-    } catch {
-      return;
-    }
-  }
-
-  drawScene();
-
-  addConsole("Modo " + mode.toUpperCase() + " selecionado.");
-}
-
-/* =====================================================
-   8. SALVAR E CARREGAR PROJETOS
-===================================================== */
-
-const STORAGE_KEY = "codelab_studio_project_v1";
 
 function saveProject() {
+  if (!workspace) return;
+
+  const name = $("projectName").value.trim() || "Projeto sem nome";
+
+  const xml = Blockly.Xml.domToText(
+    Blockly.Xml.workspaceToDom(workspace)
+  );
+
+  const projects = getProjects();
+
+  const existingIndex = projects.findIndex(
+    project => project.name === name
+  );
+
+  const project = {
+    name,
+    xml,
+    mode: currentMode,
+    updatedAt: new Date().toISOString()
+  };
+
+  if (existingIndex >= 0) {
+    projects[existingIndex] = project;
+  } else {
+    projects.push(project);
+  }
+
   try {
-    const xml = Blockly.Xml.workspaceToDom(workspace);
-    const xmlText = Blockly.Xml.domToText(xml);
-
-    const project = {
-      title: $("projectTitle").textContent,
-      mode: currentMode,
-      workspace: xmlText
-    };
-
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(project)
-    );
-
-    saveStatus.textContent = "Salvo no navegador";
-    addConsole("Projeto salvo com sucesso!", "success");
-
-  } catch (error) {
-    addConsole("Erro ao salvar: " + error.message, "error");
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+    log("Projeto salvo: " + name, "success");
+    renderProjects();
+  } catch {
+    log("Armazenamento cheio. Exporte ou apague projetos antigos.", "error");
   }
 }
 
-function loadProject() {
+function openProject(name) {
+  const project = getProjects().find(item => item.name === name);
+  if (!project) return;
+
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    workspace.clear();
 
-    if (!saved) return;
+    const xml = Blockly.utils.xml.textToDom(project.xml);
+    Blockly.Xml.domToWorkspace(xml, workspace);
 
-    const project = JSON.parse(saved);
-
-    if (project.title) {
-      $("projectTitle").textContent = project.title;
-    }
-
-    if (project.workspace) {
-      const xml = Blockly.utils.xml.textToDom(project.workspace);
-      Blockly.Xml.domToWorkspace(xml, workspace);
-    }
+    $("projectName").value = project.name;
 
     if (project.mode) {
       setMode(project.mode);
     }
 
-    saveStatus.textContent = "Projeto recuperado";
-
+    log("Projeto aberto: " + project.name, "success");
+    showPage("editor");
   } catch (error) {
-    console.error("Não foi possível recuperar o projeto:", error);
+    log("Não foi possível abrir o projeto: " + error.message, "error");
   }
 }
 
-/* =====================================================
-   9. INICIALIZAÇÃO DO BLOCKLY
-===================================================== */
+function renderProjects() {
+  const container = $("projectsList");
+  if (!container) return;
+
+  const projects = getProjects();
+  container.innerHTML = "";
+
+  if (projects.length === 0) {
+    container.textContent = "Nenhum projeto salvo ainda.";
+    return;
+  }
+
+  projects.forEach(project => {
+    const card = document.createElement("article");
+    card.className = "learning-card";
+
+    const title = document.createElement("h3");
+    title.textContent = "📁 " + project.name;
+
+    const date = document.createElement("p");
+    date.textContent = "Última alteração: " +
+      new Date(project.updatedAt).toLocaleString("pt-BR");
+
+    const open = document.createElement("button");
+    open.textContent = "Abrir projeto";
+    open.addEventListener("click", () => openProject(project.name));
+
+    const remove = document.createElement("button");
+    remove.textContent = "Excluir";
+    remove.addEventListener("click", () => {
+      const updated = getProjects().filter(
+        item => item.name !== project.name
+      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      renderProjects();
+    });
+
+    card.append(title, date, open, remove);
+    container.appendChild(card);
+  });
+}
+
+function newProject() {
+  if (workspace) workspace.clear();
+
+  $("projectName").value = "Novo projeto";
+  resetCharacter();
+  showPage("editor");
+
+  log("Novo projeto criado.");
+}
+
+/* =========================================================
+   EXPORTAR E IMPORTAR PROJETO
+   ========================================================= */
+
+function exportProject() {
+  if (!workspace) return;
+
+  const xml = Blockly.Xml.domToText(
+    Blockly.Xml.workspaceToDom(workspace)
+  );
+
+  const file = new Blob([xml], {
+    type: "text/xml;charset=utf-8"
+  });
+
+  const url = URL.createObjectURL(file);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = ($("projectName").value || "projeto") + ".xml";
+  link.click();
+
+  URL.revokeObjectURL(url);
+  log("Arquivo exportado.", "success");
+}
+
+/* =========================================================
+   MODOS 2D E 3D
+   ========================================================= */
+
+async function setMode(mode) {
+  currentMode = mode;
+
+  const is3D = mode === "3D";
+
+  $("mode2D").classList.toggle("active", !is3D);
+  $("mode3D").classList.toggle("active", is3D);
+
+  $("gameCanvas").hidden = is3D;
+  $("threeContainer").hidden = !is3D;
+
+  $("currentMode").textContent = "MODO " + mode;
+
+  if (is3D) {
+    await initialize3D();
+  } else {
+    draw2D();
+  }
+}
+
+/* =========================================================
+   NAVEGAÇÃO
+   ========================================================= */
+
+function showPage(page) {
+  const pages = {
+    editor: "editorPage",
+    learn: "learnPage",
+    projects: "projectsPage",
+    challenges: "challengesPage"
+  };
+
+  Object.values(pages).forEach(id => {
+    const element = $(id);
+    if (element) element.hidden = true;
+  });
+
+  if (pages[page]) $(pages[page]).hidden = false;
+
+  document.querySelectorAll("[data-page]").forEach(button => {
+    button.classList.toggle(
+      "active",
+      button.dataset.page === page
+    );
+  });
+
+  if (page === "projects") renderProjects();
+}
+
+/* =========================================================
+   INICIALIZAÇÃO DO BLOCKLY
+   ========================================================= */
 
 function initializeBlockly() {
-  const theme = Blockly.Theme.defineTheme("codelabTheme", {
-    base: Blockly.Themes.Classic,
+  if (!window.Blockly) {
+    log("Blockly não foi carregado. Verifique sua conexão.", "error");
+    return;
+  }
 
-    blockStyles: {
-      event_blocks: {
-        colourPrimary: "#397FEA",
-        colourSecondary: "#2866BE",
-        colourTertiary: "#1C4D96"
-      },
+  registerBlocks();
 
-      motion_blocks: {
-        colourPrimary: "#159B83",
-        colourSecondary: "#107E6B",
-        colourTertiary: "#0C6557"
-      },
+  const JS = Blockly.JavaScript;
 
-      looks_blocks: {
-        colourPrimary: "#A36BDD",
-        colourSecondary: "#8954C2",
-        colourTertiary: "#7040A4"
-      }
-    },
+  if (!JS || !JS.forBlock) {
+    log("Gerador JavaScript do Blockly não foi carregado.", "error");
+    return;
+  }
 
-    categoryStyles: {
-      event_category: { colour: "#397FEA" },
-      motion_category: { colour: "#159B83" },
-      looks_category: { colour: "#A36BDD" },
-      logic_category: { colour: "#5B9BD5" },
-      loop_category: { colour: "#D69B36" },
-      math_category: { colour: "#4C9B67" },
-      text_category: { colour: "#B16C9E" },
-      variable_category: { colour: "#D66A53" }
-    },
-
-    componentStyles: {
-      workspaceBackgroundColour: "#101B2D",
-      toolboxBackgroundColour: "#15243A",
-      toolboxForegroundColour: "#FFFFFF",
-      flyoutBackgroundColour: "#1A2B43",
-      flyoutForegroundColour: "#FFFFFF",
-      flyoutOpacity: 1,
-      scrollbarColour: "#526783",
-      insertionMarkerColour: "#FFFFFF",
-      insertionMarkerOpacity: 0.3,
-      cursorColour: "#FFFFFF",
-      blackBackground: "#000000"
-    }
-  });
+  registerGenerators();
 
   workspace = Blockly.inject("blocklyDiv", {
     toolbox: $("toolbox"),
-    theme,
     renderer: "zelos",
-
     trashcan: true,
-    sounds: false,
-
+    sounds: true,
+    move: {
+      scrollbars: true,
+      drag: true,
+      wheel: true
+    },
     zoom: {
       controls: true,
       wheel: true,
@@ -742,132 +1132,83 @@ function initializeBlockly() {
       minScale: 0.5,
       scaleSpeed: 1.1
     },
-
     grid: {
       spacing: 25,
       length: 3,
-      colour: "#263A56",
+      colour: "#39445c",
       snap: true
     }
   });
 
-  workspace.addChangeListener((event) => {
+  workspace.addChangeListener(event => {
     if (event.type === Blockly.Events.SELECTED) {
       const block = workspace.getBlockById(event.newElementId);
-      showExplanation(block);
-    }
-
-    if (
-      event.type === Blockly.Events.BLOCK_CHANGE ||
-      event.type === Blockly.Events.BLOCK_CREATE ||
-      event.type === Blockly.Events.BLOCK_DELETE ||
-      event.type === Blockly.Events.BLOCK_MOVE
-    ) {
-      saveStatus.textContent = "Alterações não salvas";
+      if (block) explainBlock(block);
     }
   });
 
-  Blockly.svgResize(workspace);
+  window.addEventListener("resize", () => {
+    Blockly.svgResize(workspace);
+    resize3D();
+  });
+
+  log("Editor Blockly carregado.", "success");
 }
 
-/* =====================================================
-   10. BOTÕES E INTERAÇÕES
-===================================================== */
+/* =========================================================
+   EVENTOS DA INTERFACE
+   ========================================================= */
 
-$("runButton").addEventListener("click", runProgram);
+function connectInterface() {
+  $("runBtn").addEventListener("click", runProgram);
+  $("stopBtn").addEventListener("click", stopProgram);
+  $("saveBtn").addEventListener("click", saveProject);
 
-$("stopButton").addEventListener("click", stopProgram);
-
-$("saveButton").addEventListener("click", saveProject);
-
-$("resetButton").addEventListener("click", () => {
-  if (!confirm("Deseja apagar todos os blocos deste projeto?")) return;
-
-  workspace.clear();
-  player.x = 400;
-  player.y = 270;
-  player.direction = 0;
-  player.message = "";
-  backgroundColor = "#DCE9F4";
-
-  drawScene();
-
-  if (threeEngine) {
-    threeEngine.character.position.set(0, 0, 0);
-    threeEngine.character.rotation.set(0, 0, 0);
-  }
-
-  clearConsole();
-  addConsole("Projeto limpo. Comece uma nova criação.");
-});
-
-document.querySelectorAll(".view-button, .side-item[data-mode]").forEach(button => {
-  button.addEventListener("click", () => {
-    setMode(button.dataset.mode);
+  $("clearBtn").addEventListener("click", () => {
+    if (workspace) workspace.clear();
+    log("Blocos removidos.");
   });
-});
 
-$("projectTitle").addEventListener("click", () => {
-  const title = prompt(
-    "Digite o nome do seu projeto:",
-    $("projectTitle").textContent
-  );
+  $("clearConsoleBtn").addEventListener("click", () => {
+    $("consoleOutput").innerHTML = "";
+  });
 
-  if (title && title.trim()) {
-    $("projectTitle").textContent = title.trim();
-    saveStatus.textContent = "Nome alterado";
-  }
-});
+  $("mode2D").addEventListener("click", () => setMode("2D"));
+  $("mode3D").addEventListener("click", () => setMode("3D"));
 
-document.querySelectorAll("[data-page]").forEach(button => {
-  button.addEventListener("click", () => {
-    const page = button.dataset.page;
+  $("newProjectBtn").addEventListener("click", newProject);
 
-    document.querySelectorAll(".nav-button").forEach(nav => {
-      nav.classList.toggle("active", nav.dataset.page === page);
+  document.querySelectorAll("[data-page]").forEach(button => {
+    button.addEventListener("click", () => {
+      showPage(button.dataset.page);
     });
-
-    if (page === "learn") {
-      explanationTitle.textContent = "Biblioteca de aprendizado";
-      explanationText.textContent =
-        "Aqui vamos construir cursos, explicações, exemplos práticos e desafios de programação.";
-    } else if (page === "projects") {
-      explanationTitle.textContent = "Meus projetos";
-      explanationText.textContent =
-        "Seus projetos podem ser salvos no navegador. Futuramente teremos uma galeria online com compartilhamento.";
-    } else {
-      explanationTitle.textContent = "Editor de programação";
-      explanationText.textContent =
-        "Arraste os blocos para criar seu programa e clique em executar para experimentar.";
-    }
   });
-});
 
-window.addEventListener("resize", () => {
-  if (workspace) {
-    Blockly.svgResize(workspace);
-  }
-});
+  // Exportação também pode ser chamada pelo console do navegador.
+  window.exportCodeLabProject = exportProject;
+}
 
-/* =====================================================
-   11. INICIAR A PLATAFORMA
-===================================================== */
+/* =========================================================
+   INICIAR CODELAB
+   ========================================================= */
 
 function startCodeLab() {
   try {
     initializeBlockly();
-    drawScene();
-    loadProject();
+    connectInterface();
+    draw2D();
+    renderProjects();
 
-    addConsole("CODELAB STUDIO iniciado!", "success");
-    addConsole("Editor de blocos carregado.");
-    addConsole("Motor 2D disponível.");
-    addConsole("Motor 3D pronto para inicialização.");
+    log("CODELAB STUDIO pronta para criar!", "success");
 
   } catch (error) {
     console.error(error);
-    addConsole("Erro ao iniciar: " + error.message, "error");
+    log("Falha na inicialização: " + error.message, "error");
   }
 }
 
-startCodeLab();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", startCodeLab);
+} else {
+  startCodeLab();
+}
