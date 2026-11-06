@@ -1,0 +1,225 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#101827">
+
+  <title>CODELAB STUDIO — Aprenda criando</title>
+
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Blockly: editor de programação visual -->
+  <script src="https://unpkg.com/blockly@11.2.2/blockly_compressed.js"></script>
+  <script src="https://unpkg.com/blockly@11.2.2/blocks_compressed.js"></script>
+  <script src="https://unpkg.com/blockly@11.2.2/javascript_compressed.js"></script>
+  <script src="https://unpkg.com/blockly@11.2.2/msg/pt-br.js"></script>
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-icon">C</div>
+      <div>
+        <h1>CODELAB <span>STUDIO</span></h1>
+        <small>Aprenda. Crie. Experimente.</small>
+      </div>
+    </div>
+
+    <nav class="main-nav">
+      <button class="nav-button active" data-page="editor">Editor</button>
+      <button class="nav-button" data-page="learn">Aprender</button>
+      <button class="nav-button" data-page="projects">Projetos</button>
+    </nav>
+
+    <div class="top-actions">
+      <span class="save-status" id="saveStatus">Projeto novo</span>
+      <button class="primary-button" id="saveButton">Salvar projeto</button>
+    </div>
+  </header>
+
+  <main class="app-layout">
+
+    <aside class="sidebar">
+      <div class="sidebar-heading">
+        <span>ESPAÇO DE CRIAÇÃO</span>
+      </div>
+
+      <button class="side-item selected" data-mode="2d">
+        <span class="side-icon">▦</span>
+        <span>
+          <strong>Projeto 2D</strong>
+          <small>Sprites e cenários</small>
+        </span>
+      </button>
+
+      <button class="side-item" data-mode="3d">
+        <span class="side-icon">◇</span>
+        <span>
+          <strong>Projeto 3D</strong>
+          <small>Mundos e personagens</small>
+        </span>
+      </button>
+
+      <div class="sidebar-divider"></div>
+
+      <div class="sidebar-heading">APRENDIZADO</div>
+
+      <button class="side-item" data-page="learn">
+        <span class="side-icon">▤</span>
+        <span>
+          <strong>Biblioteca de aulas</strong>
+          <small>Aprenda programação</small>
+        </span>
+      </button>
+
+      <button class="side-item" data-page="projects">
+        <span class="side-icon">▣</span>
+        <span>
+          <strong>Meus projetos</strong>
+          <small>Suas criações</small>
+        </span>
+      </button>
+
+      <div class="sidebar-bottom">
+        <div class="help-card">
+          <strong>Aprenda fazendo!</strong>
+          <p>Monte blocos, execute seu código e descubra como tudo funciona.</p>
+        </div>
+      </div>
+    </aside>
+
+    <section class="workspace">
+
+      <div class="project-toolbar">
+        <div>
+          <span class="eyebrow">MEU PRIMEIRO PROJETO</span>
+          <h2 id="projectTitle">Projeto sem título</h2>
+        </div>
+
+        <div class="toolbar-actions">
+          <button class="secondary-button" id="resetButton">Limpar</button>
+          <button class="run-button" id="runButton">
+            ▶ Executar
+          </button>
+          <button class="stop-button" id="stopButton">
+            ■ Parar
+          </button>
+        </div>
+      </div>
+
+      <div class="editor-grid">
+
+        <section class="blocks-panel">
+          <div class="panel-heading">
+            <div>
+              <h3>Programação visual</h3>
+              <p>Arraste os blocos para montar seu programa.</p>
+            </div>
+            <span class="panel-tag">BLOCKS</span>
+          </div>
+
+          <div id="blocklyArea">
+            <div id="blocklyDiv"></div>
+          </div>
+        </section>
+
+        <section class="preview-panel">
+          <div class="panel-heading">
+            <div>
+              <h3>Visualização</h3>
+              <p>Veja o resultado do seu programa.</p>
+            </div>
+
+            <div class="view-switch">
+              <button class="view-button active" data-mode="2d">2D</button>
+              <button class="view-button" data-mode="3d">3D</button>
+            </div>
+          </div>
+
+          <div id="previewArea">
+            <canvas id="gameCanvas" width="800" height="500"></canvas>
+            <div id="threeContainer" hidden></div>
+
+            <div class="preview-label" id="previewLabel">
+              MODO 2D
+            </div>
+          </div>
+
+          <div class="preview-footer">
+            <span id="executionStatus">Aguardando execução</span>
+            <span>CODELAB ENGINE</span>
+          </div>
+        </section>
+
+      </div>
+
+      <section class="explanation-panel">
+        <div class="explanation-icon">?</div>
+
+        <div class="explanation-content">
+          <span class="eyebrow">CENTRAL DE APRENDIZADO</span>
+          <h3 id="explanationTitle">Explore os blocos!</h3>
+          <p id="explanationText">
+            Clique em um bloco para descobrir o que ele faz,
+            quando utilizar e como funciona.
+          </p>
+        </div>
+      </section>
+
+      <section class="console-panel">
+        <div class="console-heading">
+          <h3>Console de execução</h3>
+          <span>SAÍDA DO PROGRAMA</span>
+        </div>
+        <div id="consoleOutput">
+          <p class="console-muted">Seu programa aparecerá aqui.</p>
+        </div>
+      </section>
+
+    </section>
+  </main>
+
+  <xml id="toolbox" style="display:none">
+    <category name="Eventos" categorystyle="event_category">
+      <block type="codelab_start"></block>
+    </category>
+
+    <category name="Movimento" categorystyle="motion_category">
+      <block type="codelab_move"></block>
+      <block type="codelab_turn"></block>
+    </category>
+
+    <category name="Aparência" categorystyle="looks_category">
+      <block type="codelab_say"></block>
+      <block type="codelab_background"></block>
+    </category>
+
+    <category name="Lógica" categorystyle="logic_category">
+      <block type="controls_if"></block>
+      <block type="logic_compare"></block>
+      <block type="logic_boolean"></block>
+    </category>
+
+    <category name="Repetição" categorystyle="loop_category">
+      <block type="controls_repeat_ext"></block>
+      <block type="controls_whileUntil"></block>
+    </category>
+
+    <category name="Matemática" categorystyle="math_category">
+      <block type="math_number"></block>
+      <block type="math_arithmetic"></block>
+    </category>
+
+    <category name="Texto" categorystyle="text_category">
+      <block type="text"></block>
+      <block type="text_print"></block>
+    </category>
+
+    <category name="Variáveis" categorystyle="variable_category" custom="VARIABLE"></category>
+  </xml>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
